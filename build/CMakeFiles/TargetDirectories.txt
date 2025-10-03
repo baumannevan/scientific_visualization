@@ -1,0 +1,4 @@
+C:/Users/evy42/Desktop/25-26/SciVis_2025/build/CMakeFiles/SciVis_2025.dir
+C:/Users/evy42/Desktop/25-26/SciVis_2025/build/CMakeFiles/glad_lib.dir
+C:/Users/evy42/Desktop/25-26/SciVis_2025/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/evy42/Desktop/25-26/SciVis_2025/build/CMakeFiles/ZERO_CHECK.dir

@@ -1,0 +1,10 @@
+^C:\USERS\EVY42\DESKTOP\25-26\SCIVIS_2025\BUILD\CMAKEFILES\D53577CF6F89FEEAFE400A161EEF8E7A\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/evy42/Desktop/25-26/SciVis_2025 -BC:/Users/evy42/Desktop/25-26/SciVis_2025/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/evy42/Desktop/25-26/SciVis_2025/build/SciVis_2025.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

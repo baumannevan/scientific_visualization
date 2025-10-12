@@ -11,7 +11,8 @@ class DrawItem
 {
 private:
 
-    std::vector<glm::vec3> m_vertex_data;
+    // std::vector<glm::vec3> m_vertex_data;
+    std::vector<float> m_vertex_data;
     std::vector<unsigned int> m_face_data;
 
     unsigned int m_VAO;

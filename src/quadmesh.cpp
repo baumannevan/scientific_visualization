@@ -20,6 +20,7 @@ Vertex::Vertex(unsigned int id, const glm::dvec3& position, const glm::dvec3& no
     m_id = id;
     m_position = position;
     m_normal = normal;
+    m_offset = glm::dvec3(0.0f);
     m_scalar = scalar;
     m_vector = vector;
     m_tensor = tensor;
@@ -116,6 +117,16 @@ void Vertex::reorder_pointers()
     m_edges.insert(m_edges.end(), forward_edges.begin(), forward_edges.end());
 }
 
+void Vertex::offset_position(const glm::dvec3& offset){
+    m_offset += offset;
+    m_position += offset;
+
+}
+
+void Vertex::reset_position(){
+    m_position -= m_offset;
+    m_offset -= glm::dvec3(0.0);
+}
 
 
 ;///////////////////////////////////////////////////////////////////////////////
@@ -572,4 +583,63 @@ void QuadMesh::print_info() const
     std::cout << "Number of vertices: " << num_vertices() << std::endl;
     std::cout << "Number of edges: " << num_edges() << std::endl;
     std::cout << "Number of faces: " << num_faces() << std::endl;
+}
+
+void QuadMesh::get_min_max_scalar(double& min_scalar, double& max_scalar) const{
+    // check to make sure we have vertices
+    if (m_vertices.empty()){
+        min_scalar = 0;
+        max_scalar = 0;
+        return;
+    }    
+    
+    // initialize min and max values
+    min_scalar = m_vertices[0]->scalar(); 
+    max_scalar = m_vertices[0]->scalar();
+
+    // loop through all vertices
+    for (const auto& vert : m_vertices){
+        double s = vert->scalar();
+        if (s < min_scalar) min_scalar = s;
+        if (s > max_scalar) max_scalar = s;
+    }
+}
+
+void QuadMesh::set_height_from_scalar(double factor){
+    double min_scalar, max_scalar;
+    get_min_max_scalar(min_scalar, max_scalar);
+
+    // nothing interesting to show
+    if (min_scalar == max_scalar) {
+        return;
+    }
+
+    for (auto& vert : m_vertices) {
+        // get the normalized scalar value
+        double scalar = vert->scalar();
+        double normalized_scalar = (scalar - min_scalar) / (max_scalar - min_scalar);
+
+        // offset the vertex postion in the direction of the vertex normal
+        glm::dvec3 offset = factor * normalized_scalar * vert->normal();
+        vert->offset_position(offset);
+    }
+
+    // recompute normals
+    compute_face_normals();
+    average_vertex_normals();
+    compute_midpoint_and_radius();
+    
+}
+
+void QuadMesh::reset_vertex_positions(){
+        
+    // remove the offsets from al all vertices
+    for (auto& vert : m_vertices){
+        vert->reset_position();
+    }
+
+    // recompute normals and bounding sphere for the modified mesh
+    compute_face_normals();
+    average_vertex_normals();
+    compute_midpoint_and_radius();
 }

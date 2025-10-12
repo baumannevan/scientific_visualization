@@ -19,6 +19,7 @@ private:
     unsigned int m_id;
     glm::dvec3 m_position;
     glm::dvec3 m_normal;
+    glm::dvec3 m_offset = glm::dvec3(0.0);
 
     double m_scalar;
     glm::dvec3 m_vector;
@@ -63,6 +64,9 @@ public:
 
     void compute_average_normal();
     void reorder_pointers();
+    
+    void offset_position(const glm::dvec3& offset);
+    void reset_position();
 };
 
 
@@ -168,6 +172,10 @@ public:
     void compute_midpoint_and_radius();
 
     void print_info() const;
+
+    void get_min_max_scalar(double& min_scalar, double& max_scalar) const;
+    void set_height_from_scalar(double factor);
+    void reset_vertex_positions();
 
 private:
 

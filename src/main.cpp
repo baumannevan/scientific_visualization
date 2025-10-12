@@ -23,6 +23,8 @@ double last_mouse_x = 0.0;
 double last_mouse_y = 0.0;
 bool translating = false;
 bool rotating = false;
+bool toggle_height = false;
+int color_scheme = 0; // 0 = soild color, 1 = grayscale, 3 = rainbow
 
 glm::mat4 projection(1.0);
 glm::mat4 view(1.0);
@@ -37,8 +39,17 @@ std::unique_ptr<Trackball> trackball = nullptr;
 std::unique_ptr<QuadMesh> mesh_data = nullptr;
 std::unique_ptr<DrawItem> mesh_surface = nullptr;
 
+// shader programs
+std::shared_ptr<Shader> surfaceShader = nullptr;
+std::shared_ptr<Shader> soildColorShader = nullptr;
+std::shared_ptr<Shader> grayscaleShader = nullptr;
+std::shared_ptr<Shader> bicolorShader = nullptr;
+std::shared_ptr<Shader> rainbowShader = nullptr;
+
 // Helper functions
 void set_scene();
+void load_shaders();
+void update_shaders();
 
 // GLFW Callback Declarations
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -115,9 +126,12 @@ int main(int argc, char* argv[])
     // mesh_data = std::make_unique<QuadMesh>(data_path);
 
     // read in and compile shaders
-    std::unique_ptr<Shader> surfaceShader = 
-        std::make_unique<Shader>("../shaders/solid_color.vert", 
-                                 "../shaders/solid_color.frag");
+    
+    
+    // std::unique_ptr<Shader> surfaceShader = 
+    //     std::make_unique<Shader>("../shaders/solid_color.vert", 
+    //                              "../shaders/solid_color.frag");
+    load_shaders();
 
     // create drawable item from the mesh
     // commented out to allow for the drop files into window feature
@@ -187,6 +201,51 @@ void set_scene()
     }
 }
 
+void load_shaders(){
+    soildColorShader = std::make_shared<Shader>("../shaders/solid_color.vert", "../shaders/solid_color.frag");
+    grayscaleShader = std::make_shared<Shader>("../shaders/color_map.vert", "../shaders/grayscale.frag");
+    bicolorShader = std::make_shared<Shader>("../shaders/color_map.vert", "../shaders/bicolor.frag");
+    rainbowShader = std::make_shared<Shader>("../shaders/color_map.vert", "../shaders/rainbow.frag");
+
+    // set the active shader to solid color by defualt
+    surfaceShader = soildColorShader;
+}
+
+void update_shaders() {
+    if (color_scheme == 0) {
+        surfaceShader = soildColorShader;
+        std::cout << "Using solid color shader" << std::endl;
+        return;
+    }
+    else if (color_scheme == 1) {
+        surfaceShader = grayscaleShader;
+        std::cout << "Using grayscale shader" << std::endl;
+        
+    }
+    else if (color_scheme == 2) {
+        surfaceShader = bicolorShader;
+        std::cout << "Using bi color shader" << std::endl;
+        
+    }
+    else if (color_scheme == 3) {
+        surfaceShader = rainbowShader;
+        std::cout << "Using rainbow shader" << std::endl;
+        
+    }
+
+    // get the min and max scalar values from the mesh
+    double min_scalar = 0.0;
+    double max_scalar = 1.0;
+    if (mesh_data)
+        mesh_data->get_min_max_scalar(min_scalar, max_scalar);
+    surfaceShader->use();
+    surfaceShader->setFloat("minScalar", static_cast<float>(min_scalar));
+    surfaceShader->setFloat("maxScalar", static_cast<float>(max_scalar));
+}
+
+
+
+
 ;///////////////////////////////////////////////////////////////////////////////
 ;///////////////////////////////////////////////////////////////////////////////
 ;///////////////////////////////////////////////////////////////////////////////
@@ -206,15 +265,48 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 // to be called when a key is pressed or released
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) 
 {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-    if (key == GLFW_KEY_R && action == GLFW_PRESS)
-    {
-        // reset view
-        ZOOM = 1.0;
-        TRANSLATION = glm::vec3(0.0f, 0.0f, 0.0f);
-        ROTATION = glm::mat4(1.0f);
-	}
+    if (action != GLFW_PRESS)
+        return;
+    
+    switch (key) {
+        case GLFW_KEY_ESCAPE:
+            glfwSetWindowShouldClose(window, true);
+            break;
+        case GLFW_KEY_R:
+            // reset view
+            ZOOM = 1.0;
+            TRANSLATION = glm::vec3(0.0f, 0.0f, 0.0f);
+            ROTATION = glm::mat4(1.0f);
+            break;
+        case GLFW_KEY_H:
+            // set the mesh vertex heights based on their scalar values
+            if (!mesh_data) // if there is no mesh data, do nothing
+                break;
+            toggle_height = !toggle_height;
+            if (toggle_height)
+            {
+                // get a height factor from the user and use it to set the vertex heights for the mesh_data object
+                std::cout << "Enter a height factor (e.g. 0.1 to 10.0): ";
+                float height_factor;
+                std::cin >> height_factor;
+                mesh_data->set_height_from_scalar(height_factor);
+            }
+            else
+            {
+                // reset the vertex positions for the mesh_data object
+                mesh_data->reset_vertex_positions();
+            }
+            // reconstruct the drawable surface
+            mesh_surface = std::make_unique<DrawItem>(*mesh_data, DrawItem::DrawMode::Surface);
+            break;
+        case GLFW_KEY_C:
+            // cycle through color schemes
+            color_scheme = (color_scheme + 1) % 4;
+            update_shaders();
+            break;
+    default:
+        break;
+    }
 }
 
 // to be called when a mouse button is pressed or released
@@ -283,8 +375,14 @@ void drop_callback(GLFWwindow* window, int count, const char** paths){
     if (count < 1){
         return;
     }
+
+    // update shaders with new scalar range
+    color_scheme = 0; // reset to solid color
+    update_shaders();
+    
     // load in mesh file
     mesh_data = std::make_unique<QuadMesh>(paths[0]);
+
     // create a drawable surface from the mesh
     mesh_surface = std::make_unique<DrawItem>(*mesh_data, DrawItem::DrawMode::Surface);
     // reset transformations
@@ -292,7 +390,10 @@ void drop_callback(GLFWwindow* window, int count, const char** paths){
     ROTATION = glm::mat4(1.0f);
     translating = false;
     rotating = false;
-    
+    // un-toggle height feild
+    toggle_height = false;
+
+
     // update the window
     std::string title = "Scientific Visualization - ";
     title += paths[0];

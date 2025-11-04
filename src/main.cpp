@@ -24,6 +24,7 @@ double last_mouse_y = 0.0;
 bool translating = false;
 bool rotating = false;
 bool toggle_height = false;
+bool toggle_contours;
 int color_scheme = 0; // 0 = soild color, 1 = grayscale, 3 = rainbow
 
 glm::mat4 projection(1.0);
@@ -45,6 +46,8 @@ std::shared_ptr<Shader> soildColorShader = nullptr;
 std::shared_ptr<Shader> grayscaleShader = nullptr;
 std::shared_ptr<Shader> bicolorShader = nullptr;
 std::shared_ptr<Shader> rainbowShader = nullptr;
+std::shared_ptr<Shader> contourShader = nullptr;
+
 
 // Helper functions
 void set_scene();
@@ -146,20 +149,38 @@ int main(int argc, char* argv[])
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glEnable(GL_MULTISAMPLE);
 		glEnable(GL_DEPTH_TEST);
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+
         set_scene();
         
-        // Enable shader and set uniform variables
-        surfaceShader->use();
-        surfaceShader->setMat4("projectionMatrix", projection);
-        surfaceShader->setMat4("viewMatrix", view);
-        surfaceShader->setMat4("modelMatrix", model);
-        surfaceShader->setVec3("viewPos", cameraPos);
-
+        
         // draw mesh surface
-        if (mesh_surface)
+        if (mesh_surface) {
+            // Enable shader and set uniform variables
+            surfaceShader->use();
+            surfaceShader->setMat4("projectionMatrix", projection);
+            surfaceShader->setMat4("viewMatrix", view);
+            surfaceShader->setMat4("modelMatrix", model);
+            surfaceShader->setVec3("viewPos", cameraPos);
+            
+            glDepthMask(GL_TRUE);            
             mesh_surface->draw();
+        }
 
-        // mesh_surface->draw();
+        if (mesh_surface && toggle_contours) {
+            glEnable(GL_POLYGON_OFFSET_FILL);   // these two lines make sure that we 
+            glPolygonOffset(-1.0f, -1.0f);      // draw on top of anything already drawn
+            contourShader->use();
+            contourShader->setMat4("projectionMatrix", projection);
+            contourShader->setMat4("viewMatrix", view);
+            contourShader->setMat4("modelMatrix", model);
+            contourShader->setVec3("viewPos", cameraPos);
+            mesh_surface->draw();
+            glDisable(GL_POLYGON_OFFSET_FILL);  // 
+        }
+
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -206,6 +227,7 @@ void load_shaders(){
     grayscaleShader = std::make_shared<Shader>("../shaders/color_map.vert", "../shaders/grayscale.frag");
     bicolorShader = std::make_shared<Shader>("../shaders/color_map.vert", "../shaders/bicolor.frag");
     rainbowShader = std::make_shared<Shader>("../shaders/color_map.vert", "../shaders/rainbow.frag");
+    contourShader = std::make_shared<Shader>("../shaders/contours.vert", "../shaders/contours.frag");
 
     // set the active shader to solid color by defualt
     surfaceShader = soildColorShader;
@@ -278,6 +300,22 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             TRANSLATION = glm::vec3(0.0f, 0.0f, 0.0f);
             ROTATION = glm::mat4(1.0f);
             break;
+        case GLFW_KEY_T:
+            toggle_contours = !toggle_contours;
+            if (toggle_contours && mesh_data) {
+                std::cout << "Enter a number of contours to draw e.g. 10: ";
+                int num_contours;
+                std::cin >> num_contours;
+                
+                double min_scalar, max_scalar;
+                mesh_data->get_min_max_scalar(min_scalar, max_scalar);
+
+                contourShader->use();
+                    contourShader->setInt("numContours",num_contours);
+                    contourShader->setFloat("minScalar",static_cast<float>(min_scalar));
+                    contourShader->setFloat("maxScalar",static_cast<float>(max_scalar));
+                }
+                break;
         case GLFW_KEY_H:
             // set the mesh vertex heights based on their scalar values
             if (!mesh_data) // if there is no mesh data, do nothing
@@ -392,6 +430,8 @@ void drop_callback(GLFWwindow* window, int count, const char** paths){
     rotating = false;
     // un-toggle height feild
     toggle_height = false;
+    toggle_contours = false;
+
 
 
     // update the window

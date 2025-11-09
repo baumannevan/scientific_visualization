@@ -5,6 +5,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <iostream>
+#include <random>
+
+#include <random>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
 
 #include "shader.h"
 #include "trackball.h"
@@ -47,12 +52,18 @@ std::shared_ptr<Shader> grayscaleShader = nullptr;
 std::shared_ptr<Shader> bicolorShader = nullptr;
 std::shared_ptr<Shader> rainbowShader = nullptr;
 std::shared_ptr<Shader> contourShader = nullptr;
+std::shared_ptr<Shader> licShader = nullptr;
+
+// texture indices
+unsigned int noiseTexture;
+unsigned int imageTexture;
 
 
 // Helper functions
 void set_scene();
 void load_shaders();
 void update_shaders();
+void load_textures();
 
 // GLFW Callback Declarations
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -134,6 +145,7 @@ int main(int argc, char* argv[])
     // std::unique_ptr<Shader> surfaceShader = 
     //     std::make_unique<Shader>("../shaders/solid_color.vert", 
     //                              "../shaders/solid_color.frag");
+    load_textures();
     load_shaders();
 
     // create drawable item from the mesh
@@ -155,7 +167,16 @@ int main(int argc, char* argv[])
 
         set_scene();
         
-        
+        // bind textures for LIC shader
+        if (surfaceShader == licShader)
+        {
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, noiseTexture);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, imageTexture);
+        }
+
+
         // draw mesh surface
         if (mesh_surface) {
             // Enable shader and set uniform variables
@@ -228,6 +249,11 @@ void load_shaders(){
     bicolorShader = std::make_shared<Shader>("../shaders/color_map.vert", "../shaders/bicolor.frag");
     rainbowShader = std::make_shared<Shader>("../shaders/color_map.vert", "../shaders/rainbow.frag");
     contourShader = std::make_shared<Shader>("../shaders/contours.vert", "../shaders/contours.frag");
+    licShader = std::make_shared<Shader>("../shaders/lic.vert", "../shaders/lic.frag");
+    licShader->use();
+    licShader->setInt("noiseTexture", 0); // texture unit 0
+    licShader->setInt("imageTexture", 1); // texture unit 1
+
 
     // set the active shader to solid color by defualt
     surfaceShader = soildColorShader;
@@ -254,6 +280,20 @@ void update_shaders() {
         std::cout << "Using rainbow shader" << std::endl;
         
     }
+    else if (color_scheme == 4)
+    {
+        surfaceShader = licShader;
+        surfaceShader->use();
+        surfaceShader->setInt("useTexture", 0); // 0 = noise texture
+        std::cout << "Using noise LIC shader" << std::endl;
+    }
+    else if (color_scheme == 5)
+    {
+        surfaceShader = licShader;
+        surfaceShader->use();
+        surfaceShader->setInt("useTexture", 1); // 1 = image texture
+        std::cout << "Using image LIC shader" << std::endl;
+    }
 
     // get the min and max scalar values from the mesh
     double min_scalar = 0.0;
@@ -263,10 +303,73 @@ void update_shaders() {
     surfaceShader->use();
     surfaceShader->setFloat("minScalar", static_cast<float>(min_scalar));
     surfaceShader->setFloat("maxScalar", static_cast<float>(max_scalar));
+
+    double min_x, max_x, min_y, max_y, min_z, max_z;
+    min_x = min_y = min_z = 0.0;
+    max_x = max_y = max_z = 1.0;
+    if (mesh_data)
+        mesh_data->get_min_max_coords(min_x, max_x, min_y, max_y, min_z, max_z);
+    surfaceShader->setFloat("minX", static_cast<float>(min_x));
+    surfaceShader->setFloat("maxX", static_cast<float>(max_x));
+    surfaceShader->setFloat("minY", static_cast<float>(min_y));
+    surfaceShader->setFloat("maxY", static_cast<float>(max_y));
+
 }
 
+void load_textures() {
+    // generate white/black noise texture
+    // settings for the texture
+    glGenTextures(1, &noiseTexture);
+    glBindTexture(GL_TEXTURE_2D, noiseTexture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    
+    // size for the noise texture
+    const int size = 512;
+    unsigned char* data1 = new unsigned char[size * size];
+    
+    // fill data with random black/white values (0 or 255)
+    std::mt19937 rng(std::random_device{}());
+    std::uniform_int_distribution<int>dist(0,1);
+    for (int i =0; i < size * size; i++){
+        data1[i] = dist(rng)*255;
+    }
+
+    // generate texture
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, size, size, 0, GL_RED, GL_UNSIGNED_BYTE, data1);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    delete[] data1;
 
 
+
+    // load texture image from file
+
+    // settings for the texture
+    glGenTextures(1, &imageTexture);
+    glBindTexture(GL_TEXTURE_2D, imageTexture);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // try to open the image file
+    const char* image_file = "../textures/starry_night.jpg";
+    int width, height, nrChannels;
+    stbi_set_flip_vertically_on_load(true);
+    unsigned char* data2 = stbi_load(image_file, &width, &height, &nrChannels, 0);
+    if (data2)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data2);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture image: " << image_file << std::endl;
+    }
+    stbi_image_free(data2);
+}
 
 ;///////////////////////////////////////////////////////////////////////////////
 ;///////////////////////////////////////////////////////////////////////////////
@@ -339,7 +442,7 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
             break;
         case GLFW_KEY_C:
             // cycle through color schemes
-            color_scheme = (color_scheme + 1) % 4;
+            color_scheme = (color_scheme + 1) % 6;
             update_shaders();
             break;
     default:

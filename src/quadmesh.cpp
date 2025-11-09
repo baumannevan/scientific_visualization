@@ -643,3 +643,35 @@ void QuadMesh::reset_vertex_positions(){
     average_vertex_normals();
     compute_midpoint_and_radius();
 }
+
+void QuadMesh::get_min_max_coords(double& min_x, double& max_x, double& min_y,
+     double& max_y, double& min_z, double& max_z) const
+{ 
+    // check to make sure we have vertices
+    if (m_vertices.empty()){
+        min_x, min_y, min_z = 0;
+        max_x, max_y, max_z = 0;
+        return;
+    }    
+    
+    // initialize min and max values
+    min_x = m_vertices[0]->pos().x; 
+    max_x = m_vertices[0]->pos().x;
+    max_y = m_vertices[0]->pos().y; 
+    max_y = m_vertices[0]->pos().y;
+    max_z = m_vertices[0]->pos().z; 
+    max_z = m_vertices[0]->pos().z;
+    
+    
+    // loop through all vertices
+    for (const auto& vert : m_vertices){
+     glm::dvec3 pos = vert->pos();
+     if (pos.x < min_x) min_x = pos.x;
+     if (pos.x > max_x) max_x = pos.x;
+     if (pos.y < min_y) min_y = pos.y;
+     if (pos.y > max_y) max_y = pos.y;
+     if (pos.z < min_z) min_z = pos.z;
+     if (pos.z > max_z) max_z = pos.z;
+    }
+
+}

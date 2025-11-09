@@ -41,7 +41,7 @@ void DrawItem::initializeSurface(const QuadMesh& mesh)
     m_vertex_data.clear();
     m_face_data.clear();
     // m_vertex_data.reserve(mesh.num_vertices() * 2); // vertex position and normal
-    m_vertex_data.reserve(mesh.num_vertices() * 7); // vertex position, normal, and scalar value
+    m_vertex_data.reserve(mesh.num_vertices() * 10); // vertex position, normal, scalar values, and vector values
     m_face_data.reserve(mesh.num_faces() * 6); // each quad face will be drawn as two triangles
     for (const std::shared_ptr<Vertex>& v : mesh.vertices())
     {
@@ -50,6 +50,7 @@ void DrawItem::initializeSurface(const QuadMesh& mesh)
         glm::vec3 pos = glm::vec3(v->pos());
         glm::vec3 norm = glm::vec3(v->normal());
         float scalar = static_cast<float>(v->scalar());
+        glm::vec3 vector = glm::vec3(v->scalar());
         m_vertex_data.push_back(pos.x);
         m_vertex_data.push_back(pos.y);
         m_vertex_data.push_back(pos.z);
@@ -57,6 +58,10 @@ void DrawItem::initializeSurface(const QuadMesh& mesh)
         m_vertex_data.push_back(norm.y);
         m_vertex_data.push_back(norm.z);
         m_vertex_data.push_back(scalar);
+        m_vertex_data.push_back(vector.x);
+        m_vertex_data.push_back(vector.y);
+        m_vertex_data.push_back(vector.z);
+        
     }
     for (const std::shared_ptr<Face>& f : mesh.faces())
     {
@@ -84,25 +89,22 @@ void DrawItem::initializeSurface(const QuadMesh& mesh)
     // load face data into element buffer
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_face_data.size() * sizeof(unsigned int), &m_face_data[0], GL_STATIC_DRAW);
-
-    // set the vertex attribute pointers
-    // glEnableVertexAttribArray(0);
-    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 2 * sizeof(glm::vec3), (void*)0);
-    // glEnableVertexAttribArray(1);
-    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 2 * sizeof(glm::vec3), (void*)sizeof(glm::vec3));
     
-    // Position: location 0, 3 floats, stride 7 floats
+    // Position: location 0, 3 floats, stride 10 floats
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void*)0);
 
-    // Normal: location 1, 3 floats, stride 7 floats, offset 3 floats
+    // Normal: location 1, 3 floats, stride 10 floats, offset 3 floats
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void*)(3 * sizeof(float)));
 
-    // Scalar: location 2, 1 float, stride 7 floats, offset 6 floats
+    // Scalar: location 2, 1 float, stride 10 floats, offset 6 floats
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void*)(6 * sizeof(float)));
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void*)(6 * sizeof(float)));
 
+    // Vertex Vector: location 3, 3 floats, stride 10 floats, offset 7 floats
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void*)(7 * sizeof(float)));
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);

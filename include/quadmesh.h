@@ -176,6 +176,9 @@ public:
     void get_min_max_scalar(double& min_scalar, double& max_scalar) const;
     void set_height_from_scalar(double factor);
     void reset_vertex_positions();
+    void get_min_max_coords(double& min_x, double& max_x, 
+                            double& min_y, double& max_y,
+                            double& min_z, double& max_z) const;
 
 private:
 

@@ -23,7 +23,8 @@ public:
 
     enum class DrawMode { Points, Wireframe, Surface };
 
-    DrawItem(const QuadMesh& mesh, DrawMode draw_mode = DrawMode::Surface);
+    // add the resolution and radius parameters
+    DrawItem(const QuadMesh& mesh, DrawMode draw_mode = DrawMode::Surface, int resolution = 4, float radius = 0.1f); 
     ~DrawItem();
 
     void draw() const;
@@ -31,6 +32,8 @@ public:
 private:
 
     void initializeSurface(const QuadMesh& mesh);
-    void initializeTubes(const QuadMesh& mesh);
-    void initializeSpheres(const QuadMesh& mesh);
+    // add the tube_sides and tube_radius parameters
+    void initializeTubes(const QuadMesh& mesh, int tube_sides, float tube_radius); 
+    // add the sphere_divisions and sphere_radius parameters
+    void initializeSpheres(const QuadMesh& mesh, int shpere_divisions, float sphere_radius); 
 };

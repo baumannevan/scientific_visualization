@@ -135,6 +135,9 @@ public:
     size_t num_edges() const;
     
     const glm::dvec3 centroid() const;
+
+    bool contains_xy_point(const glm::dvec3& point) const;
+    glm::dvec3 bilinear_interpolate_xy_vector(const glm::dvec3& point) const;
 };
 
 
@@ -154,6 +157,7 @@ public:
 
     QuadMesh();
     QuadMesh(const char* filename); // load from PLY file
+    QuadMesh(const QuadMesh& base_mesh, double step_size, int num_steps);
     ~QuadMesh();
 
     const std::vector<std::shared_ptr<Vertex>>& vertices() const;
@@ -179,6 +183,19 @@ public:
     void get_min_max_coords(double& min_x, double& max_x, 
                             double& min_y, double& max_y,
                             double& min_z, double& max_z) const;
+
+    double get_grid_spacing() const;
+
+    const std::shared_ptr<Face> get_face_containing_xy_point(const glm::dvec3& point) const;
+
+    glm::dvec3 take_xy_streamline_step(const glm::dvec3& current_pos,
+        const std::shared_ptr<Face>& current_face, std::shared_ptr<Face>& next_face,
+        double step_size, int direction) const;
+
+    void compute_xy_streamline(std::vector<glm::dvec3>& streamline,
+        const glm::dvec3& start_pos, const std::shared_ptr<Face>& start_face,
+        double step_size, int num_steps) const;
+
 
 private:
 

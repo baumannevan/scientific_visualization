@@ -30,7 +30,8 @@ bool translating = false;
 bool rotating = false;
 bool toggle_height = false;
 bool toggle_contours;
-int color_scheme = 0; // 0 = soild color, 1 = grayscale, 3 = rainbow
+int color_scheme = 0; // 0 = soild color, 1 = grayscale, 3 = 
+bool draw_streamlines = false;
 
 glm::mat4 projection(1.0);
 glm::mat4 view(1.0);
@@ -44,6 +45,8 @@ glm::vec3 cameraUp(0.0f, 1.0f, 0.0f);
 std::unique_ptr<Trackball> trackball = nullptr;
 std::unique_ptr<QuadMesh> mesh_data = nullptr;
 std::unique_ptr<DrawItem> mesh_surface = nullptr;
+std::unique_ptr<QuadMesh> stream_data = nullptr;
+std::unique_ptr<DrawItem> stream_tubes = nullptr;
 
 // shader programs
 std::shared_ptr<Shader> surfaceShader = nullptr;
@@ -53,6 +56,8 @@ std::shared_ptr<Shader> bicolorShader = nullptr;
 std::shared_ptr<Shader> rainbowShader = nullptr;
 std::shared_ptr<Shader> contourShader = nullptr;
 std::shared_ptr<Shader> licShader = nullptr;
+std::shared_ptr<Shader> flatShader = nullptr;
+
 
 // texture indices
 unsigned int noiseTexture;
@@ -202,6 +207,18 @@ int main(int argc, char* argv[])
             glDisable(GL_POLYGON_OFFSET_FILL);  // 
         }
 
+        // Draw the streamlines if they exist and are enabled
+        if (stream_tubes && draw_streamlines)
+        {
+            flatShader->use();
+            flatShader->setMat4("projectionMatrix", projection);
+            flatShader->setMat4("viewMatrix", view);
+            flatShader->setMat4("modelMatrix", model);
+            flatShader->setVec3("viewPos", cameraPos);
+            glDepthMask(GL_TRUE);
+            stream_tubes->draw();
+        }
+
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -250,6 +267,8 @@ void load_shaders(){
     rainbowShader = std::make_shared<Shader>("../shaders/color_map.vert", "../shaders/rainbow.frag");
     contourShader = std::make_shared<Shader>("../shaders/contours.vert", "../shaders/contours.frag");
     licShader = std::make_shared<Shader>("../shaders/lic.vert", "../shaders/lic.frag");
+    flatShader = std::make_shared<Shader>("../shaders/flat_color.vert", "../shaders/flat_color.frag");
+
     licShader->use();
     licShader->setInt("noiseTexture", 0); // texture unit 0
     licShader->setInt("imageTexture", 1); // texture unit 1
@@ -419,6 +438,37 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
                     contourShader->setFloat("maxScalar",static_cast<float>(max_scalar));
                 }
                 break;
+        case GLFW_KEY_S:
+            // toggle on the streamline drawing
+            draw_streamlines = !draw_streamlines;
+            if (draw_streamlines && mesh_data)
+            {
+                // get a streamine step size and number of steps from the user
+                std::cout << "Enter a streamline step size (0.0 to 1.0): ";
+                double step_size;
+                std::cin >> step_size;
+                std::cout << "Enter a number of streamline steps (e.g. 32): ";
+                int num_steps;
+                std::cin >> num_steps;
+
+                // scale the step size based on the mesh grid spacing
+                double grid_spacing = mesh_data->get_grid_spacing();
+                step_size = step_size * grid_spacing;
+
+                // set the tube radius based on the mesh grid spacing as well
+                float tube_radius = static_cast<float>(grid_spacing) * 0.02f;
+
+                // generate streamlines and create drawable tubes
+                stream_data = std::make_unique<QuadMesh>(*mesh_data, step_size, num_steps);
+                stream_tubes = std::make_unique<DrawItem>(*stream_data, DrawItem::DrawMode::Wireframe, 4, tube_radius);
+            }
+            else
+            {
+                // clear out streamline data
+                stream_data = nullptr;
+                stream_tubes = nullptr;
+            }
+            break;
         case GLFW_KEY_H:
             // set the mesh vertex heights based on their scalar values
             if (!mesh_data) // if there is no mesh data, do nothing
@@ -526,6 +576,12 @@ void drop_callback(GLFWwindow* window, int count, const char** paths){
 
     // create a drawable surface from the mesh
     mesh_surface = std::make_unique<DrawItem>(*mesh_data, DrawItem::DrawMode::Surface);
+
+    // clear out streamline data
+    stream_data = nullptr;
+    stream_tubes = nullptr;
+    draw_streamlines = false;
+
     // reset transformations
     ZOOM = 1.0;
     ROTATION = glm::mat4(1.0f);
@@ -534,7 +590,6 @@ void drop_callback(GLFWwindow* window, int count, const char** paths){
     // un-toggle height feild
     toggle_height = false;
     toggle_contours = false;
-
 
 
     // update the window

@@ -260,6 +260,67 @@ const glm::dvec3 Face::centroid() const
     return sum / static_cast<double>(m_vertices.size());
 }
 
+bool Face::contains_xy_point(const glm::dvec3& point) const
+{
+    // Project vertex coordinates to XY plane
+    glm::dvec2 p(point.x, point.y);
+    glm::dvec2 v0(m_vertices[0]->pos().x, m_vertices[0]->pos().y);
+    glm::dvec2 v1(m_vertices[1]->pos().x, m_vertices[1]->pos().y);
+    glm::dvec2 v2(m_vertices[2]->pos().x, m_vertices[2]->pos().y);
+    glm::dvec2 v3(m_vertices[3]->pos().x, m_vertices[3]->pos().y);
+
+    // use cross products to determine if the point is on one side or the other of each edge
+    auto cross_differences = [](const glm::dvec2& p1, const glm::dvec2& p2, const glm::dvec2& p3) 
+    {
+        return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+    };
+    bool b1 = cross_differences(p, v0, v1) < 0.0;
+    bool b2 = cross_differences(p, v1, v2) < 0.0;
+    bool b3 = cross_differences(p, v2, v3) < 0.0;
+    bool b4 = cross_differences(p, v3, v0) < 0.0;
+
+    // if the point is on the same side of all edges, it is inside the quad
+    return ((b1 == b2) && (b2 == b3) && (b3 == b4));
+}
+
+glm::dvec3 Face::bilinear_interpolate_xy_vector(const glm::dvec3& point) const
+{
+    // Assumes the quad is an x-y aligned square and assumes point is inside the quad
+    double x1, x2, y1, y2;
+    glm::dvec3 v11, v12, v21, v22;
+    x1 = m_vertices[0]->pos().x;
+    x2 = m_vertices[0]->pos().x;
+    y1 = m_vertices[0]->pos().y;
+    y2 = m_vertices[0]->pos().y;
+
+    // find min and max x and y from vertices
+    for (const auto& v : m_vertices)
+    {
+        if (v->pos().x < x1) x1 = v->pos().x;
+        if (v->pos().x > x2) x2 = v->pos().x;
+        if (v->pos().y < y1) y1 = v->pos().y;
+        if (v->pos().y > y2) y2 = v->pos().y;
+    }
+
+    // find the vectors at each corner
+    for (const auto& v : m_vertices)
+    {
+        if (v->pos().x == x1 && v->pos().y == y1) v11 = v->vector();
+        else if (v->pos().x == x1 && v->pos().y == y2) v12 = v->vector();
+        else if (v->pos().x == x2 && v->pos().y == y1) v21 = v->vector();
+        else if (v->pos().x == x2 && v->pos().y == y2) v22 = v->vector();
+    }
+
+    // do the interpolation
+    double x = point.x;
+    double y = point.y;
+    glm::dvec3 vxy = ((x2 - x) * (y2-y) * v11 +
+                      (x2 - x) * (y - y1) * v12 +
+                      (x - x1) * (y2 - y) * v21 +
+                      (x - x1) * (y - y1) * v22) /
+                     ((x2 - x1) * (y2 - y1));
+    return glm::dvec3(vxy.x, vxy.y, 0.0);
+}
 
 
 ;///////////////////////////////////////////////////////////////////////////////
@@ -435,6 +496,51 @@ QuadMesh::QuadMesh(const char* filename)
 
     std::cout << "Opened quad mesh from " << filename << std::endl;
     print_info();
+}
+
+QuadMesh::QuadMesh(const QuadMesh& base_mesh, double step_size, int num_steps)
+{
+    m_vertices.clear();
+    m_edges.clear();
+    m_faces.clear();
+
+    // create a streamline through the midpoint of each face in the base mesh
+    std::vector<glm::dvec3> streamline;
+    for (const auto& face : base_mesh.faces())
+    {
+        streamline.clear();
+
+        // compute the streamline starting from the face centroid
+        streamline.clear();
+        base_mesh.compute_xy_streamline(
+            streamline, face->centroid(), face,
+            step_size, num_steps);
+        if (streamline.size() < 2)
+            continue;
+        
+        
+        // add the streamline points as vertices in this mesh
+        for (const glm::dvec3& point : streamline)
+        {
+            unsigned int vert_id = static_cast<unsigned int>(m_vertices.size());
+            glm::dvec3 normal(0.0, 0.0, 1.0);
+            std::shared_ptr<Vertex> v = std::make_shared<Vertex>(vert_id, point, normal);
+            m_vertices.push_back(v);
+        }
+
+        // add edges between consecutive streamline points
+        for (int i = 1; i < streamline.size(); i++)
+        {
+            auto& v1 = m_vertices.at(m_vertices.size() - i);
+            auto& v2 = m_vertices.at(m_vertices.size() - i - 1);
+
+            unsigned int edge_id = static_cast<unsigned int>(m_edges.size());
+            std::shared_ptr<Edge> e = std::make_shared<Edge>(edge_id, v1, v2);
+            m_edges.push_back(e);
+            v1->add_edge(e);
+            v2->add_edge(e);
+        }
+    }
 }
 
 QuadMesh::~QuadMesh() {}
@@ -653,7 +759,7 @@ void QuadMesh::get_min_max_coords(double& min_x, double& max_x, double& min_y,
         max_x, max_y, max_z = 0;
         return;
     }    
-    
+     
     // initialize min and max values
     min_x = m_vertices[0]->pos().x; 
     max_x = m_vertices[0]->pos().x;
@@ -675,3 +781,141 @@ void QuadMesh::get_min_max_coords(double& min_x, double& max_x, double& min_y,
     }
 
 }
+
+double QuadMesh::get_grid_spacing() const
+{
+    if (m_edges.empty()) 
+        return 0.0;
+    return m_edges[0]->length();
+}   
+
+const std::shared_ptr<Face> QuadMesh::get_face_containing_xy_point(const glm::dvec3& point) const
+{
+    std::shared_ptr<Face> result = nullptr;
+
+    // loop through all faces to find one that contains the point
+    for (const std::shared_ptr<Face>& face : m_faces)
+    {
+        if (face->contains_xy_point(point))
+        {
+            result = face;
+            break;
+        }
+    }
+
+    // if no face contains the point, return nullptr
+    return result;
+}
+
+glm::dvec3 QuadMesh::take_xy_streamline_step(const glm::dvec3& current_pos,
+    const std::shared_ptr<Face>& current_face,std::shared_ptr<Face>& next_face,
+    double step_size, int direction) const
+{
+    // sample the vector field at the current position within the current face
+    glm::dvec3 vector = current_face->bilinear_interpolate_xy_vector(current_pos);
+    if (vector.x == 0.0 && vector.y == 0.0)
+    {
+        next_face = nullptr;
+        return current_pos; // zero vector field, cannot step
+    }
+
+    // normalize the vector, check the direction (forward/backward) and take a step
+    glm::dvec3 step_dir = glm::normalize(vector) * static_cast<double>(direction);
+    glm::dvec3 next_pos = current_pos + step_dir * step_size;
+
+    // determine if the next position is still within the current face
+    if (current_face->contains_xy_point(next_pos))
+    {
+        next_face = current_face;
+        return next_pos;
+    }
+
+    // if the new position is outside the current face, find the crossing
+    // point with one of the face edges
+    for (const auto& edge : current_face->edges())
+    {
+        glm::dvec3 v1 = edge->v1()->pos();
+        glm::dvec3 v2 = edge->v2()->pos();
+
+        // check if the line segment from current_pos to next_pos intersects edge v1-v2
+        // using a simple 2D line intersection test in XY plane
+        double denom = (v2.y - v1.y) * (next_pos.x - current_pos.x) - 
+                    (v2.x - v1.x) * (next_pos.y - current_pos.y);
+        if (denom == 0.0)
+            continue; // the lines are parallel
+
+        double t = ((v2.x - v1.x) * (current_pos.y - v1.y) - 
+                    (v2.y - v1.y) * (current_pos.x - v1.x)) / denom;
+        double u = ((next_pos.x - current_pos.x) * (current_pos.y - v1.y) - 
+                    (next_pos.y - current_pos.y) * (current_pos.x - v1.x)) / denom;
+
+        if (t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0)
+        {
+            // intersection detected, get the adjacent face across this edge
+            next_face = edge->other_face(current_face);
+            // return the intersection point as the new position
+            return current_pos + t * (next_pos - current_pos);
+        }
+    }
+
+    // We should not reach here unless there was a numerical issue
+    // In this case, just return no next face so the streamline stops
+    next_face = nullptr;
+    return current_pos;
+    
+}
+
+void QuadMesh::compute_xy_streamline(std::vector<glm::dvec3>& streamline,
+    const glm::dvec3& start_pos, const std::shared_ptr<Face>& start_face,
+    double step_size, int num_steps) const
+{
+    // make sure the streamline is empty
+    streamline.clear();
+    // add the seed point
+    streamline.push_back(start_pos);
+
+    // first get the starting quad if it isn't provided
+    std::shared_ptr<Face> start_face_local = start_face;
+    if (!start_face_local)
+    {
+        start_face_local = get_face_containing_xy_point(start_pos);
+        if (!start_face_local)
+            return; // starting point is outside the mesh
+    }
+    
+    // take steps backward along the vector field
+    glm::dvec3 current_pos = start_pos;
+    std::shared_ptr<Face> current_face = start_face_local;
+    std::shared_ptr<Face> next_face = nullptr;
+    for (int step = 0; step < num_steps; step++)
+    {
+        glm::dvec3 next_pos = take_xy_streamline_step(current_pos, current_face,
+            next_face, step_size, -1);
+        streamline.push_back(next_pos);
+        if (!next_face){
+            break; // streamline has exited the mesh
+        }
+        current_pos = next_pos;
+        current_face = next_face;
+    }
+
+    // flip the streamline around before we go forward
+    std::reverse(streamline.begin(), streamline.end());
+
+    // take steps forward along the vector field
+    current_pos = start_pos;
+    current_face = start_face_local;
+    next_face = nullptr;
+    for (int step = 0; step < num_steps; step++)
+    {
+        glm::dvec3 next_pos = take_xy_streamline_step(current_pos, current_face,
+            next_face, step_size, 1);
+        streamline.push_back(next_pos);
+        if (!next_face){
+            break; // streamline has exited the mesh
+        }
+        current_pos = next_pos;
+        current_face = next_face;
+    }
+}
+

@@ -44,13 +44,14 @@ void main()
     // gl_Position is a built-in mandatory output variable that holds the transformed vertex position
     gl_Position = mvp * vec4(glVertex, 1.0);
 
-    vVector = normalize(glVector.xy);
-    
     vScalar = (glScalar - minScalar) / (maxScalar - minScalar);
     vScalar = clamp(vScalar, 0.0, 1.0);
 
+    vVector = normalize(glVector.xy);
+    
 
-    float tx = (maxX > minX) ? (glVertex.x - minX) / (maxX - minX) : 0.0;
-    float ty = (maxY > minY) ? (glVertex.y - minY) / (maxY - minY) : 0.0;
-    vTexCoord = clamp(vec2(tx, ty), 0.0, 1.0);
+    float tx = (glVertex.x - minX) / (maxX - minX);
+    float ty = (glVertex.y - minY) / (maxY - minY);
+
+    vTexCoord = vec2(tx, ty);
 }

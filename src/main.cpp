@@ -326,6 +326,7 @@ void update_shaders() {
     double min_x, max_x, min_y, max_y, min_z, max_z;
     min_x = min_y = min_z = 0.0;
     max_x = max_y = max_z = 1.0;
+   
     if (mesh_data)
         mesh_data->get_min_max_coords(min_x, max_x, min_y, max_y, min_z, max_z);
     surfaceShader->setFloat("minX", static_cast<float>(min_x));
@@ -360,10 +361,6 @@ void load_textures() {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, size, size, 0, GL_RED, GL_UNSIGNED_BYTE, data1);
     glGenerateMipmap(GL_TEXTURE_2D);
     delete[] data1;
-
-
-
-    // load texture image from file
 
     // settings for the texture
     glGenTextures(1, &imageTexture);

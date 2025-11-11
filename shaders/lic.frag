@@ -5,6 +5,7 @@ const float ambientStrength = 0.8;
 const float diffuseStrength = 0.2;
 const float specularStrength = 0.1;
 const float shininess = 512.0;
+
 const int licSteps = 12;
 const float licStepSize = 0.002;
 

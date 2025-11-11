@@ -755,17 +755,17 @@ void QuadMesh::get_min_max_coords(double& min_x, double& max_x, double& min_y,
 { 
     // check to make sure we have vertices
     if (m_vertices.empty()){
-        min_x, min_y, min_z = 0;
-        max_x, max_y, max_z = 0;
+        min_x, min_y, min_z = 0.0;
+        max_x, max_y, max_z = 0.0;
         return;
     }    
      
     // initialize min and max values
     min_x = m_vertices[0]->pos().x; 
     max_x = m_vertices[0]->pos().x;
-    max_y = m_vertices[0]->pos().y; 
+    min_y = m_vertices[0]->pos().y; 
     max_y = m_vertices[0]->pos().y;
-    max_z = m_vertices[0]->pos().z; 
+    min_z = m_vertices[0]->pos().z; 
     max_z = m_vertices[0]->pos().z;
     
     
@@ -779,7 +779,6 @@ void QuadMesh::get_min_max_coords(double& min_x, double& max_x, double& min_y,
      if (pos.z < min_z) min_z = pos.z;
      if (pos.z > max_z) max_z = pos.z;
     }
-
 }
 
 double QuadMesh::get_grid_spacing() const
